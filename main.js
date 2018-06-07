@@ -13,8 +13,7 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json')
 const assetsDirectory = path.join(__dirname, 'assets')
 
 var settings = {}
-var currentUser = undefined
-var defaultTheme = 'light-theme'  //  or 'dark-theme'
+const Settings = require('libs/settings');
 
 app.dock.hide()
 
@@ -22,7 +21,6 @@ app.dock.hide()
 // be closed automatically when the JavaScript object is garbage collected.
 let mainWindow
 let tray
-
 
 /////////////
 // Helpers //
@@ -36,7 +34,6 @@ const log = (err, stdout, stderr) => {
 }
 
 const execute = (cmd, opts, callback) => {
-
 	if (_(opts).isFunction()) {
 		callback = opts
 		opts = {}
@@ -66,61 +63,6 @@ const execute = (cmd, opts, callback) => {
 			})
 		})
 	}
-}
-
-
-function getGitInfo() {
-  return new Promise((resolve,reject) => {
-	execute("git config --global user.name", (err, username) => {
-		 execute("git config --global user.email", (err, email) => {
-			if (!_(username).isString() || !_(email).isString()) {
-				resolve({})
-				return false
-			}
-			username = username.replace("\n", "")
-			email = email.replace("\n", "")
-			currentUser = undefined
-
-			let ob = {}
-			
-			for(var key in settings.profiles){
-				if(settings.profiles[key].username == username && settings.profiles[key].email == email){
-					currentUser = key
-					ob[key] = settings.profiles[key]
-					break	
-				}
-			}
-
-			if(!currentUser){
-				let id = Date.now()
-				currentUser = id
-				ob[id] = {
-					label: username,
-					username: username, 
-					email: email 
-				}
-			}
-
-			resolve(ob)
-		 })
-	 })
-  })
-}
-
-function setGitInfo(key) {
-	return new Promise((resolve,reject) => {
-		if (!settings.profiles[key]) return reject()
-
-		execute(`git config --global user.name \"${settings.profiles[key].username}\"`, (name) => {
-			execute(`git config --global user.email \"${settings.profiles[key].email}\"`, (email) => {
-				currentUser = key
-
-				getGitInfo()
-				.then(resolve)
-				.catch(reject)
-			})
-		})
-	})
 }
 
 /////////////
@@ -157,42 +99,6 @@ const showWindow = () => {
 
 const getTrayMenu = function () {
 	return Menu.buildFromTemplate([
-		{
-			label: 'Current profile:',
-			enabled: false
-		},
-		{
-			label: settings.profiles[currentUser].label,
-			enabled: false
-		},
-		{
-			type: 'separator'
-		},
-		{
-			label: 'Select theme:',
-			enabled: false
-		},
-		{
-			type: 'radio',
-			label : 'Light theme',
-			checked: getCurrentTheme() == 'light-theme',
-			click: changeTheme 
-		},
-		{
-			type: 'radio',
-			label : 'Dark theme',
-			checked: getCurrentTheme() == 'dark-theme',
-			click: changeTheme 
-		}, 
-		{
-			type :'separator'
-		},
-		{
-			type: 'checkbox',
-			label : 'Start at login',
-			checked: getAutoStart() == true,
-			click: toggleAutoStart 
-		},
 		{
 			type :'separator'
 		},   
@@ -232,8 +138,7 @@ function createWindow (state) {
 	})
 
 	mainWindow.custom = {
-		'currentState': state ? state : 'profile-list',
-		'theme': getCurrentTheme()
+		'currentState': state ? state : 'index'
 	}
 
 	// and load the index.html of the app.
@@ -255,80 +160,6 @@ function createWindow (state) {
 //// APP ////
 /////////////
 
-function readSettings() {
-	return new Promise((resolve, reject) => {
-		try {
-			settings = fs.readFileSync(settingsPath, 'utf-8')
-			settings = JSON.parse(settings)
-			if (DEBUG) console.log('Loaded file:' + settingsPath, settings)
-			resolve(settings)
-		} catch (err) {
-			if (DEBUG) console.log('Error reading the file: ' + JSON.stringify(err))
-			reject(null)
-		}
-	})
-}
-
-function saveSettings() {
-  try { 
-	fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 4), 'utf-8') 
-  }
-  catch(e) { 
-	alert('Failed to save the file !') 
-  }
-}
-
-function insertOrUpdateSetting(ob) {
-	if(!settings.profiles) { settings.profiles = {} }
-	_(settings.profiles).extend(ob)
-	saveSettings()
-}
-
-function removeSetting(key) {
-	if(!settings.profiles || settings.profiles[key] == null) return
-	delete settings.profiles[key]
-	saveSettings()
-}
-
-function getAllSettings() {
-	return settings.profiles
-}
-
-function activateSetting(key) {
-	if (settings.profiles[key]) setGitInfo(key)
-}
-
-function getCurrentTheme() {
-	return settings.theme ? settings.theme : defaultTheme
-}
-
-function changeTheme() {
-	if(getCurrentTheme() == 'light-theme'){
-		settings.theme = 'dark-theme'
-	}else{
-		settings.theme = 'light-theme'
-	}
-	mainWindow.webContents.send('changeTheme' , settings.theme)
-	saveSettings()
-}
-
-function getAutoStart() {
-	return settings.autostart ? settings.autostart : false
-}
-
-function toggleAutoStart() {
-	settings.autostart = !getAutoStart();
-	setAutoStart()
-}
-
-function setAutoStart() {
-
-	app.setLoginItemSettings({
-		openAtLogin: !! settings.autostart,
-	});
-
-	saveSettings()
-}
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
@@ -343,42 +174,13 @@ function setAutoStart() {
 			if (DEBUG) console.log(type, data)
 			switch(type){
 				case "getCurrentUser":
-					// update currentUser
-					getGitInfo()
-					event.returnValue = currentUser
-					break
-				case "getSettings":
-					event.returnValue = getAllSettings()
-					break
-				case "removeSetting":
-					removeSetting(data)
-					event.returnValue = true
-					break
-				case "activateSetting":
-					activateSetting(data)
-					event.returnValue = true
-					break
-				case "insertOrUpdateSetting":
-					insertOrUpdateSetting(data)
-					event.returnValue = true
+					event.returnValue = {}
 					break
 			}
 		})
 
-		readSettings()
-		.then(getGitInfo)
-		.then(createTray)
-		.then(setAutoStart)
-		.catch(() => {
-			if (DEBUG) console.log("First launch probably!")
-			return getGitInfo()
-			.then(insertOrUpdateSetting)
-			.then(createTray)
-			.then(setAutoStart)
-			.catch(log)
-		})
-
-
+		// Do stuff here
+		Settings.readSettings()
 	})
 
 	// Quit when all windows are closed.
