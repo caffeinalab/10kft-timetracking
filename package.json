@@ -1,0 +1,27 @@
+{
+  "name": "10kft-timetracking",
+  "version": "1.0.0",
+  "description": "Tracking time with 10kft through this app",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-packager . --overwrite --platform=darwin --arch=x64 --icon=assets/icon-app.icns --ignore='settings.json|gulpfile.js|client/app|client/tmp|client/node_modules|client/gulpfile.js|client/package.js' --prune=true --out=release-builds",
+    "dmg": "electron-installer-dmg ./release-builds/gumi-darwin-x64/gumi.app gumi-app --out=release-builds --overwrite --icon=assets/icon-app.icns --background=assets/background.png"
+  },"contributors": [
+    {
+      "name": "Ani Sinanaj",
+      "url": "https://progress44.com/"
+    },{
+      "name": "Flavio De Stefano",
+      "url": "https://kopiro.it"
+    }
+  ],
+  "devDependencies": {
+    "electron": "~1.7.12",
+    "electron-installer-dmg": "^0.2.1",
+    "electron-packager": "^12.0.2"
+  },
+  "dependencies": {
+    "underscore": "^1.8.3"
+  }
+}
